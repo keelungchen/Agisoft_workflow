@@ -30,7 +30,24 @@ doc.save()  # 保存專案
 # Step 5: Align Photos（對齊照片）
 # 使用Metashape的align功能來對齊照片，形成稀疏點雲
 # 設定參數：高精度、啟用Generic預選、排除靜態連接點、啟用相機模型自適應擬合
-chunk.matchPhotos(downscale=1, generic_preselection=True, reference_preselection=False, filter_mask=False, filter_stationary_points=True, keypoint_limit=50000, tiepoint_limit=0,progress=lambda p: print(f'Processing: {p * 100:.2f}% complete'))
-chunk.alignCameras(adaptive_fitting=True, progress=lambda p: print(f'Processing: {p * 100:.2f}% complete'))
+chunk.matchPhotos(
+    downscale=1,
+    generic_preselection=True,
+    reference_preselection=False,
+    filter_mask=False,
+    filter_stationary_points=True,
+    keypoint_limit=50000,
+    tiepoint_limit=0,
+    reset_matchs=True,
+    progress=lambda p: print(f'Processing: {p :.2f}% complete')
+)
+chunk.alignCameras(adaptive_fitting=True, reset_alignment=True, progress=lambda p: print(f'Processing: {p :.2f}% complete'))
 doc.save()  # 保存對齊結果
+# 顯示對齊過程
+print("照片對齊中，參數：精度=高，Generic預選=True，排除靜態連接點=True，自適應相機擬合=True，Key點數量=50000，Tie點數量=0")
 
+# Step 6: 儲存最終專案
+# 保存包含已對齊照片的完整專案
+doc.save()
+# 顯示完成信息
+print("照片匯入並對齊完成，專案已儲存至:", project_path)
