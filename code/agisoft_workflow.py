@@ -46,6 +46,15 @@ doc.save()  # 保存對齊結果
 # 顯示對齊過程
 print("照片對齊中，參數：精度=高，Generic預選=True，排除靜態連接點=True，自適應相機擬合=True，Key點數量=50000，Tie點數量=0")
 
+# Step 6: Gradual Selection and Remove Points (逐步選擇並刪除點)
+# 在稀疏點雲中執行逐步選擇，選取誤差較大的點，level 設定為 15
+f = Metashape.TiePoints.Filter()
+f.init(chunk, criterion=Metashape.TiePoints.Filter.ReconstructionUncertainty)
+f.selectPoints(threshold=15)
+# 刪除選取的點
+chunk.tie_points.removeSelectedPoints()
+
+
 # Step 6: 儲存最終專案
 # 保存包含已對齊照片的完整專案
 doc.save()
