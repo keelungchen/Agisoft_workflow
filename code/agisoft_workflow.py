@@ -62,9 +62,9 @@ chunk.matchPhotos(
     keypoint_limit=50000,
     tiepoint_limit=0,
     reset_matches=True,
-    progress=lambda p: print(f'Processing: {p :.2f}% complete')
+    progress=lambda p: print(f'Processing matchPhotos: {p :.2f}% complete')
 )
-chunk.alignCameras(adaptive_fitting=True, reset_alignment=True, progress=lambda p: print(f'Processing: {p :.2f}% complete'))
+chunk.alignCameras(adaptive_fitting=True, reset_alignment=True, progress=lambda p: print(f'Processing alignCameras: {p :.2f}% complete'))
 doc.save()  # 保存對齊結果
 # 顯示對齊過程
 print("照片對齊中，參數：精度=高，Generic預選=True，排除靜態連接點=True，自適應相機擬合=True，Key點數量=50000，Tie點數量=0")
@@ -125,6 +125,7 @@ for scale_bar in list(chunk.scalebars):
 # 打印目前的比例尺數量及其長度
 num_scalebars = len(chunk.scalebars)
 print(f"目前專案中有 {num_scalebars} 個比例尺")
+
 # 為 target 9 - target 10、target 49 - target 50、target 55 - target 56 建立比例尺，並將長度設定為 0.0582、0.0558
 scale_bar_pairs = [
     ("target 9", "target 10", 0.0582),
@@ -152,16 +153,17 @@ for scalebar in chunk.scalebars:
     if type(scalebar.point0) == Metashape.Camera:
         if not (scalebar.point0.center and scalebar.point1.center):
             continue  # 跳過端點未定義的比例尺
-        dist_estimated = round((scalebar.point0.center - scalebar.point1.center).norm() * chunk.transform.scale, 5)
+        dist_estimated = round((scalebar.point0.center - scalebar.point1.center).norm() * chunk.transform.scale, 6)
     else:
         if not (scalebar.point0.position and scalebar.point1.position):
             continue  # 跳過端點未定義的比例尺
-        dist_estimated = round((scalebar.point0.position - scalebar.point1.position).norm() * chunk.transform.scale, 5)
+        dist_estimated = round((scalebar.point0.position - scalebar.point1.position).norm() * chunk.transform.scale, 6)
     dist_error = dist_estimated - dist_source
     total_error += dist_error
-    print(f"比例尺 {scalebar.label}: 長度 = {dist_source} 米, 預估長度 = {dist_estimated:.5f} 米, 誤差 = {dist_error:.5f}")
+    print(f"比例尺 {scalebar.label}: 長度 = {dist_source} 米, 預估長度 = {dist_estimated:.6f} 米, 誤差 = {dist_error:.6f}")
 
-print(f"比例尺的總誤差為: {total_error:.5f}")
+print(f"比例尺的總誤差為: {total_error:.6f}")
+
 # 更新 Transform
 chunk.updateTransform()
 doc.save()
@@ -195,14 +197,13 @@ doc.save()
 
 # Step 10.1: Filter Dense Cloud by Confidence (根據信度過濾密集點雲)
 # 選取信度在 0 到 1 之間的密集點雲點並刪除
-chunk.point_cloud.setConfidenceFilter(min_confidence=0, max_confidence=1)
-
-
+chunk.point_cloud.setConfidenceFilter(0, 1)
+chunk.point_cloud.removePoints(list(range(128))) #removes all "visible" points of the dense cloud
+chunk.point_cloud.resetFilters()
 doc.save()
 
 
-
-# Step #: Set Reference to Local Coordinate System (設定參考為在地坐標系)
+# Step 11: Set Reference to Local Coordinate System (設定參考為在地坐標系)
 # 設定專案的參考為在地坐標系
 chunk.crs = None  # 設定為在地坐標系，無投影的本地座標系統
 # 設定 target 1、target 2、target 3 的 XYZ 值
