@@ -116,19 +116,7 @@ for marker in list(chunk.markers):
 print("所有標記已被刪除")
 """
 
-# Step 9: Set Reference to Local Coordinate System (設定參考為在地坐標系)
-# 設定專案的參考為在地坐標系
-chunk.crs = None  # 設定為在地坐標系，無投影的本地座標系統
-# 設定 target 1、target 2、target 3 的 XYZ 值
-marker_names = ['target 1', 'target 2', 'target 3']
-marker_coordinates = [(0, 0, 0), (0, 0.0582, 0), (0.0579, 0, 0)]
-for marker_name, coordinates in zip(marker_names, marker_coordinates):
-    marker = next((m for m in chunk.markers if m.label == marker_name), None)
-    if marker:
-        marker.reference.location = coordinates
-# 更新 Transform
-chunk.updateTransform()
-doc.save()
+# Step 9: create scale bars (建立比例尺)
 """
 # 刪除專案中的所有比例尺
 for scale_bar in list(chunk.scalebars):
@@ -178,6 +166,47 @@ print(f"比例尺的總誤差為: {total_error:.5f}")
 chunk.updateTransform()
 doc.save()
 
+# Step 9.1: Projection Error and Optimize Alignment
+# 使用Projection Error選擇tie points，設定為 0.5
+f.init(chunk, criterion=Metashape.TiePoints.Filter.ReprojectionError)
+f.selectPoints(threshold=0.5)
+# 刪除選取的點
+chunk.tie_points.removeSelectedPoints()
+# 優化對齊
+chunk.optimizeCameras(fit_f=True, fit_cx=True, fit_cy=True, \
+    fit_b1=True, fit_b2=True, fit_k1=True, fit_k2=True, fit_k3=True, \
+    fit_k4=True, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
+doc.save()
+
+# Step 10: Build Dense Cloud (建立密集點雲)
+# 須先進行 Build Depth Maps (建立深度圖)
+# 設定參數：品質=中等，計算深度
+chunk.buildDepthMaps(
+    downscale=4,
+    progress=lambda p: print(f'Processing buildDepthMaps: {p :.2f}% complete')
+)
+doc.save()
+# 設定參數：根據深度圖計算密集顏色點
+chunk.buildPointCloud(
+    point_confidence=True,
+    progress=lambda p: print(f'Processing buildPointCloud: {p :.2f}% complete')
+)
+doc.save()
+
+
+# Step #: Set Reference to Local Coordinate System (設定參考為在地坐標系)
+# 設定專案的參考為在地坐標系
+chunk.crs = None  # 設定為在地坐標系，無投影的本地座標系統
+# 設定 target 1、target 2、target 3 的 XYZ 值
+marker_names = ['target 1', 'target 2', 'target 3']
+marker_coordinates = [(0, 0, 0), (0, 0.0582, 0), (0.0579, 0, 0)]
+for marker_name, coordinates in zip(marker_names, marker_coordinates):
+    marker = next((m for m in chunk.markers if m.label == marker_name), None)
+    if marker:
+        marker.reference.location = coordinates
+# 更新 Transform
+chunk.updateTransform()
+doc.save()
 
 # Step 6: 儲存最終專案
 # 保存包含已對齊照片的完整專案
