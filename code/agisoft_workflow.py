@@ -14,6 +14,29 @@ project_path = os.path.join(project_folder, f"{project_name}.psx")  # 設定專�
 doc = Metashape.Document()
 doc.save(path=project_path)  # 儲存專案文件到指定路徑
 
+'''
+# 或是開啟一個現有的專案
+# Load Existing Project and Check Status (載入已存在的專案並檢查狀態)
+# 開啟已存在的Metashape專案文件
+existing_project_path = r"D:\3D_workshop\indoor_demo\tg_ortho_20\agisoft\tg_ortho_20.psx"
+doc.open(existing_project_path)
+chunk = doc.chunk
+# 檢查專案狀態，例如相機數量和照片對齊狀態
+print(f"相機數量: {len(chunk.cameras)}")
+# 顯示未對齊的相機
+unaligned_cameras = [camera.label for camera in chunk.cameras if not camera.transform]
+if unaligned_cameras:
+    print(f"未對齊的相機: {', '.join(unaligned_cameras)}")
+else:
+    print("所有相機均已對齊")
+# 檢查 Tie Points，以及其點數量
+if chunk.tie_points:
+    num_points = len(chunk.tie_points.points)
+    print(f"稀疏點雲存在，包含 {num_points} 個點")
+else:
+    print("稀疏點雲不存在或沒有點")
+'''
+
 # Step 3: 建立一個新的Chunk
 # 在Metashape中，Chunk是處理工作的一個單位，包括對應、生成點雲、建模等
 chunk = doc.addChunk()
@@ -38,13 +61,19 @@ chunk.matchPhotos(
     filter_stationary_points=True,
     keypoint_limit=50000,
     tiepoint_limit=0,
-    reset_matchs=True,
+    reset_matches=True,
     progress=lambda p: print(f'Processing: {p :.2f}% complete')
 )
 chunk.alignCameras(adaptive_fitting=True, reset_alignment=True, progress=lambda p: print(f'Processing: {p :.2f}% complete'))
 doc.save()  # 保存對齊結果
 # 顯示對齊過程
 print("照片對齊中，參數：精度=高，Generic預選=True，排除靜態連接點=True，自適應相機擬合=True，Key點數量=50000，Tie點數量=0")
+
+# 優化對齊
+chunk.optimizeCameras(fit_f=True, fit_cx=True, fit_cy=True, \
+    fit_b1=True, fit_b2=True, fit_k1=True, fit_k2=True, fit_k3=True, \
+    fit_k4=True, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
+doc.save()
 
 # Step 6: Gradual Selection and Remove Points (逐步選擇並刪除點)
 # 在稀疏點雲中執行逐步選擇，選取誤差較大的點，level 設定為 15
@@ -55,26 +84,17 @@ f.selectPoints(threshold=15)
 chunk.tie_points.removeSelectedPoints()
 doc.save()
 
-#------
-# Step 7: Load Existing Project and Check Status (載入已存在的專案並檢查狀態)
-# 開啟已存在的Metashape專案文件
-existing_project_path = r"D:\3D_workshop\indoor_demo\tg_ortho_20\agisoft\tg_ortho_20.psx"
-doc.open(existing_project_path)
-chunk = doc.chunk
-# 檢查專案狀態，例如相機數量和照片對齊狀態
-print(f"相機數量: {len(chunk.cameras)}")
-# 顯示未對齊的相機
-unaligned_cameras = [camera.label for camera in chunk.cameras if not camera.transform]
-if unaligned_cameras:
-    print(f"未對齊的相機: {', '.join(unaligned_cameras)}")
-else:
-    print("所有相機均已對齊")
-# 檢查 Tie Points，以及其點數量
-if chunk.tie_points:
-    num_points = len(chunk.tie_points.points)
-    print(f"稀疏點雲存在，包含 {num_points} 個點")
-else:
-    print("稀疏點雲不存在或沒有點")
+# Step 6.1: Gradual Selection by Projection Accuracy and Optimize Alignment
+# 使用投影精度進步選擇tie points，設定為 5
+f.init(chunk, criterion=Metashape.TiePoints.Filter.ProjectionAccuracy)
+f.selectPoints(threshold=5)
+# 刪除選取的點
+chunk.tie_points.removeSelectedPoints()
+# 優化對齊
+chunk.optimizeCameras(fit_f=True, fit_cx=True, fit_cy=True, \
+    fit_b1=True, fit_b2=True, fit_k1=True, fit_k2=True, fit_k3=True, \
+    fit_k4=True, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
+doc.save()
 
 
 # Step 8: Detect Markers (檢測標記)
@@ -154,16 +174,13 @@ for scalebar in chunk.scalebars:
     print(f"比例尺 {scalebar.label}: 長度 = {dist_source} 米, 預估長度 = {dist_estimated:.5f} 米, 誤差 = {dist_error:.5f}")
 
 print(f"比例尺的總誤差為: {total_error:.5f}")
-
-
 # 更新 Transform
 chunk.updateTransform()
 doc.save()
-
 
 
 # Step 6: 儲存最終專案
 # 保存包含已對齊照片的完整專案
 doc.save()
 # 顯示完成信息
-print("照片匯入並對齊完成，專案已儲存至:", project_path)
+print("專案已儲存至:", project_path)
