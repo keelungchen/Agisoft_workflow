@@ -164,9 +164,6 @@ for scalebar in chunk.scalebars:
 
 print(f"比例尺的總誤差為: {total_error:.6f}")
 
-# 更新 Transform
-chunk.updateTransform()
-doc.save()
 
 # Step 9.1: Projection Error and Optimize Alignment
 # 使用Projection Error選擇tie points，設定為 0.5
@@ -213,8 +210,30 @@ for marker_name, coordinates in zip(marker_names, marker_coordinates):
     marker = next((m for m in chunk.markers if m.label == marker_name), None)
     if marker:
         marker.reference.location = coordinates
+
 # 更新 Transform
 chunk.updateTransform()
+doc.save()
+
+# Step 12: Build DEM (建立數字高程模型)
+# 使用密集點雲來建立DEM
+chunk.buildDem(
+    source_data=Metashape.DataSource.PointCloudData,
+    interpolation=Metashape.EnabledInterpolation,
+    progress=lambda p: print(f'Processing buildDem: {p :.2f}% complete')
+)
+doc.save()
+
+# Step 12: Build Orthomosaic (建立正射影像)
+# 使用DEM來建立正射影像
+chunk.buildOrthomosaic(
+    surface_data=Metashape.DataSource.ElevationData,
+    blending_mode=Metashape.BlendingMode.MosaicBlending,
+    fill_holes=True,
+    ghosting_filter=True,
+    resolution=0.0005,
+    progress=lambda p: print(f'Processing buildOrthomosaic: {p :.2f}% complete')
+)
 doc.save()
 
 # Step 6: 儲存最終專案
