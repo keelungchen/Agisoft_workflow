@@ -193,6 +193,14 @@ chunk.buildPointCloud(
 )
 doc.save()
 
+# Step 10.1: Filter Dense Cloud by Confidence (根據信度過濾密集點雲)
+# 選取信度在 0 到 1 之間的密集點雲點並刪除
+chunk.point_cloud.setConfidenceFilter(min_confidence=0, max_confidence=1)
+
+
+doc.save()
+
+
 
 # Step #: Set Reference to Local Coordinate System (設定參考為在地坐標系)
 # 設定專案的參考為在地坐標系
