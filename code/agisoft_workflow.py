@@ -6,6 +6,8 @@ print(Metashape.app.version)
 # Step 1: 建立一個新的Metashape專案並設定路徑
 # 定義專案儲存的位置
 project_folder = r"D:\3D_workshop\indoor_demo\tg_ortho_20\agisoft"
+output_folder = r"D:\3D_workshop\indoor_demo\tg_ortho_20\products"
+logo_folder = r"D:\3D_workshop\indoor_demo\logo" # 輸出report時顯示在pdf上logo的檔案位置
 project_name = os.path.basename(os.path.dirname(project_folder))  # 用資料夾名稱作為專案名稱
 project_path = os.path.join(project_folder, f"{project_name}.psx")  # 設定專案檔案名稱及副檔名
 
@@ -134,12 +136,24 @@ scale_bar_pairs = [
 ]
 
 for target1_label, target2_label, length in scale_bar_pairs:
-    target1 = next((m for m in chunk.markers if m.label == target1_label), None)
-    target2 = next((m for m in chunk.markers if m.label == target2_label), None)
-    if target1 and target2:
-        scale_bar = chunk.addScalebar(target1, target2)
-        scale_bar.reference.distance = length
-        print(f"建立比例尺: {target1_label} - {target2_label}，長度為 {length} 米")
+    # 嘗試從當前 Chunk 中找到對應標記
+    target1 = next((m for m in chunk.markers if m.label == target1_label), None)  # 根據標記名稱尋找 target1
+    target2 = next((m for m in chunk.markers if m.label == target2_label), None)  # 根據標記名稱尋找 target2
+
+    # 如果找不到標記，輸出警告並跳過該比例尺的建立
+    if not target1 or not target2:
+        print(f"警告: 找不到標記 {target1_label} 或 {target2_label}，無法建立比例尺")
+        continue  # 跳過這對標記的處理
+
+    try:
+        # 建立比例尺並設置其參考距離
+        scale_bar = chunk.addScalebar(target1, target2)  # 建立比例尺物件
+        scale_bar.reference.distance = length  # 設定比例尺的實際距離
+        print(f"成功建立比例尺: {target1_label} - {target2_label}，長度為 {length} 公尺")
+    except Exception as e:
+        # 捕捉比例尺建立過程中的任何錯誤並輸出錯誤信息
+        print(f"錯誤: 無法為標記 {target1_label} 和 {target2_label} 建立比例尺。原因: {e}")
+
 # 更新 Transform
 chunk.updateTransform()
 doc.save()
@@ -163,7 +177,6 @@ for scalebar in chunk.scalebars:
     print(f"比例尺 {scalebar.label}: 長度 = {dist_source} 米, 預估長度 = {dist_estimated:.6f} 米, 誤差 = {dist_error:.6f}")
 
 print(f"比例尺的總誤差為: {total_error:.6f}")
-
 
 # Step 9.1: Projection Error and Optimize Alignment
 # 使用Projection Error選擇tie points，設定為 0.5
@@ -236,7 +249,20 @@ chunk.buildOrthomosaic(
 )
 doc.save()
 
-# Step 6: 儲存最終專案
+# Step 13: Generate Report (生成報告)
+# 生成項目報告，包括關鍵的重建信息和數據統計
+report_path = os.path.join(output_folder, f"{project_name}_report.pdf")
+chunk.exportReport(
+    path=report_path,
+    title=f"{project_name} Report",
+    logo_path=os.path.join(logo_folder, "report_logo.png"),
+    description="Generated using Metashape Python API @Guan-Yan Chen"
+)
+print("報告已生成: ", report_path)
+
+
+
+# 儲存最終專案
 # 保存包含已對齊照片的完整專案
 doc.save()
 # 顯示完成信息
