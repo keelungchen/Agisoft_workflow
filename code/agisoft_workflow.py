@@ -258,8 +258,14 @@ chunk.exportReport(
     logo_path=os.path.join(logo_folder, "report_logo.png"),
     description="Generated using Metashape Python API @Guan-Yan Chen"
 )
-print("報告已生成: ", report_path)
-
+report_path = os.path.join(output_folder, f"{project_name}_report.html")
+chunk.exportReport(
+    path=report_path,
+    title=f"{project_name} Report",
+    logo_path=os.path.join(logo_folder, "report_logo.png"),
+    description="Generated using Metashape Python API @Guan-Yan Chen"
+)
+print("PDF與HTML報告已生成: ", report_path)
 
 
 # 儲存最終專案
