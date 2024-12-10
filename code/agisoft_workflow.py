@@ -3,11 +3,19 @@ import os
 
 print(Metashape.app.version)
 
+# 定義根資料夾路徑
+base_folder = r"D:\3D_workshop\indoor_demo"
+# 列出所有資料夾名稱並排除特定資料夾
+excluded_folders = {"exclude_this_folder", "another_folder_to_exclude"}  # 定義要排除的資料夾
+all_folders = [folder for folder in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, folder)) and folder not in excluded_folders]
+print("要處理的資料夾:\n" + "\n".join(all_folders))
+
+
 # Step 1: 建立一個新的Metashape專案並設定路徑
 # 定義專案儲存的位置
 project_folder = r"D:\3D_workshop\indoor_demo\tg_ortho_20\agisoft"
 output_folder = r"D:\3D_workshop\indoor_demo\tg_ortho_20\products"
-logo_folder = r"D:\3D_workshop\indoor_demo\logo" # 輸出report時顯示在pdf上logo的檔案位置
+logo_folder = r"D:\3D_workshop\logo" # 輸出report時顯示在pdf上logo的檔案位置
 project_name = os.path.basename(os.path.dirname(project_folder))  # 用資料夾名稱作為專案名稱
 project_path = os.path.join(project_folder, f"{project_name}.psx")  # 設定專案檔案名稱及副檔名
 
