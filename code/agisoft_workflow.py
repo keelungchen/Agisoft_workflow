@@ -37,13 +37,6 @@ for folder in all_folders:
     project_name = os.path.basename(folder_path)  # 以資料夾名稱作為專案名稱
     project_path = os.path.join(agisoft_folder, f"{project_name}.psx")  # 專案檔案路徑
 
-    # 定義專案儲存的位置
-    project_folder = r"D:\3D_workshop\indoor_demo\tg_ortho_20\agisoft"
-    output_folder = r"D:\3D_workshop\indoor_demo\tg_ortho_20\products"
-
-    project_name = os.path.basename(os.path.dirname(project_folder))  # 用資料夾名稱作為專案名稱
-    project_path = os.path.join(project_folder, f"{project_name}.psx")  # 設定專案檔案名稱及副檔名
-
     # Step 2: 初始化Metashape Document物件
     # 這個Document物件用來存儲及管理Metashape的所有項目（如照片、點雲等）
     doc = Metashape.Document()
@@ -55,9 +48,7 @@ for folder in all_folders:
     doc.save()  # 每次操作後都保存專案
 
     # Step 4: 匯入照片
-    # 定義照片所在的資料夾並匯入所有照片
-    photo_folder = r"D:\3D_workshop\indoor_demo\tg_ortho_20\photos"
-    photos = [os.path.join(photo_folder, f) for f in os.listdir(photo_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff'))]
+    photos = [os.path.join(photos_folder, f) for f in os.listdir(photos_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.tif', '.tiff'))]
     # 將照片添加到chunk中
     chunk.addPhotos(photos)
     doc.save()  # 保存專案
@@ -119,7 +110,6 @@ for folder in all_folders:
     )
     doc.save()  # 保存檢測標記結果
    
-
     # Step 9: create scale bars (建立比例尺)
     # 為 target 9 - target 10、target 49 - target 50、target 55 - target 56 建立比例尺，並將長度設定為 0.0582、0.0558
     scale_bar_pairs = [
@@ -244,14 +234,14 @@ for folder in all_folders:
 
     # Step 13: Generate Report (生成報告)
     # 生成項目報告，包括關鍵的重建信息和數據統計
-    report_path = os.path.join(output_folder, f"{project_name}_report.pdf")
+    report_path = os.path.join(products_folder, f"{project_name}_report.pdf")
     chunk.exportReport(
         path=report_path,
         title=f"{project_name} Report",
         logo_path=os.path.join(logo_folder, "report_logo.png"),
         description="Generated using Metashape Python API @Guan-Yan Chen"
     )
-    report_path = os.path.join(output_folder, f"{project_name}_report.html")
+    report_path = os.path.join(products_folder, f"{project_name}_report.html")
     chunk.exportReport(
         path=report_path,
         title=f"{project_name} Report",
@@ -260,13 +250,12 @@ for folder in all_folders:
     )
     print("PDF與HTML報告已生成: ", report_path)
 
-
     # 儲存最終專案
     # 保存包含已對齊照片的完整專案
     doc.save()
     # 顯示完成信息
     print("專案已儲存至:", project_path)
 
-
+print("所有資料夾的處理完成！")
     
 
