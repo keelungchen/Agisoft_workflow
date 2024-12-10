@@ -65,9 +65,9 @@ for folder in all_folders:
         keypoint_limit=50000,
         tiepoint_limit=0,
         reset_matches=True,
-        progress=lambda p: print(f'Processing matchPhotos: {p :.2f}% complete')
+        progress=lambda p: print(f'Processing {folder} matchPhotos: {p :.2f}% complete')
     )
-    chunk.alignCameras(adaptive_fitting=True, reset_alignment=True, progress=lambda p: print(f'Processing alignCameras: {p :.2f}% complete'))
+    chunk.alignCameras(adaptive_fitting=True, reset_alignment=True, progress=lambda p: print(f'Processing {folder} alignCameras: {p :.2f}% complete'))
     doc.save()  # 保存對齊結果
     # 顯示對齊過程
     print("照片對齊中，參數：精度=高，Generic預選=True，排除靜態連接點=True，自適應相機擬合=True，Key點數量=50000，Tie點數量=0")
@@ -106,7 +106,7 @@ for folder in all_folders:
     chunk.detectMarkers(
         target_type=Metashape.TargetType.CircularTarget12bit,
         tolerance=20,
-        progress=lambda p: print(f'Processing: {p :.2f}% complete')
+        progress=lambda p: print(f'Processing {folder}: {p :.2f}% complete')
     )
     doc.save()  # 保存檢測標記結果
    
@@ -178,13 +178,13 @@ for folder in all_folders:
     # 設定參數：品質=中等，計算深度
     chunk.buildDepthMaps(
         downscale=4,
-        progress=lambda p: print(f'Processing buildDepthMaps: {p :.2f}% complete')
+        progress=lambda p: print(f'Processing {folder} buildDepthMaps: {p :.2f}% complete')
     )
     doc.save()
     # 設定參數：根據深度圖計算密集顏色點
     chunk.buildPointCloud(
         point_confidence=True,
-        progress=lambda p: print(f'Processing buildPointCloud: {p :.2f}% complete')
+        progress=lambda p: print(f'Processing {folder} buildPointCloud: {p :.2f}% complete')
     )
     doc.save()
 
@@ -216,7 +216,7 @@ for folder in all_folders:
     chunk.buildDem(
         source_data=Metashape.DataSource.PointCloudData,
         interpolation=Metashape.EnabledInterpolation,
-        progress=lambda p: print(f'Processing buildDem: {p :.2f}% complete')
+        progress=lambda p: print(f'Processing {folder} buildDem: {p :.2f}% complete')
     )
     doc.save()
 
@@ -228,7 +228,7 @@ for folder in all_folders:
         fill_holes=True,
         ghosting_filter=True,
         resolution=0.0005,
-        progress=lambda p: print(f'Processing buildOrthomosaic: {p :.2f}% complete')
+        progress=lambda p: print(f'Processing {folder} buildOrthomosaic: {p :.2f}% complete')
     )
     doc.save()
 
