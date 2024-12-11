@@ -1,5 +1,6 @@
 import Metashape
 import os
+import pandas as pd
 
 print(Metashape.app.version)
 
@@ -7,10 +8,17 @@ print(Metashape.app.version)
 base_folder = r"D:\3D_workshop\indoor_demo"
 logo_folder = r"D:\3D_workshop\logo" # 輸出report時顯示在pdf上logo的檔案位置
 
+# 定義比例尺資訊與在地坐標檔案路徑
+scale_bar_file = r"D:\3D_workshop\scale_bars\scale_bars_info.xlsx"
+local_coordinates_file = r"D:\3D_workshop\scale_bars\local_coordinates_info.xlsx"
+# 讀取比例尺與在地坐標資訊
+scale_bar_data = pd.read_excel(scale_bar_file)
+local_coordinates_data = pd.read_excel(local_coordinates_file)
+
 # 列出所有資料夾名稱並排除特定資料夾
-excluded_folders = {"exclude_this_folder", "another_folder_to_exclude"}  # 定義要排除的資料夾
 all_folders = [folder for folder in os.listdir(base_folder) if os.path.isdir(os.path.join(base_folder, folder)) and folder not in excluded_folders]
 print("要處理的資料夾:\n" + "\n".join(all_folders))
+excluded_folders = {"DSLR","samsung", "tg_ortho_30","tg_spiral", "another_folder_to_exclude"}  # 定義要排除的資料夾
 
 # 過濾完成的資料夾
 for folder in all_folders:
@@ -111,30 +119,27 @@ for folder in all_folders:
     doc.save()  # 保存檢測標記結果
    
     # Step 9: create scale bars (建立比例尺)
-    # 為 target 9 - target 10、target 49 - target 50、target 55 - target 56 建立比例尺，並將長度設定為 0.0582、0.0558
-    scale_bar_pairs = [
-        ("target 9", "target 10", 0.0582),
-        ("target 49", "target 50", 0.0558),
-        ("target 55", "target 56", 0.0558)
-    ]
+    # 使用CSV檔案中讀取的資訊建立比例尺
+    for index, row in scale_bar_data.iterrows():
+        target1_label = row['scale_bar_1']
+        target2_label = row['scale_bar_2']
+        length = row['length']
 
-    for target1_label, target2_label, length in scale_bar_pairs:
         # 嘗試從當前 Chunk 中找到對應標記
-        target1 = next((m for m in chunk.markers if m.label == target1_label), None)  # 根據標記名稱尋找 target1
-        target2 = next((m for m in chunk.markers if m.label == target2_label), None)  # 根據標記名稱尋找 target2
+        target1 = next((m for m in chunk.markers if m.label == target1_label), None)
+        target2 = next((m for m in chunk.markers if m.label == target2_label), None)
 
         # 如果找不到標記，輸出警告並跳過該比例尺的建立
         if not target1 or not target2:
             print(f"警告: 找不到標記 {target1_label} 或 {target2_label}，無法建立比例尺")
-            continue  # 跳過這對標記的處理
+            continue
 
         try:
             # 建立比例尺並設置其參考距離
-            scale_bar = chunk.addScalebar(target1, target2)  # 建立比例尺物件
-            scale_bar.reference.distance = length  # 設定比例尺的實際距離
+            scale_bar = chunk.addScalebar(target1, target2)
+            scale_bar.reference.distance = length
             print(f"成功建立比例尺: {target1_label} - {target2_label}，長度為 {length} 公尺")
         except Exception as e:
-            # 捕捉比例尺建立過程中的任何錯誤並輸出錯誤信息
             print(f"錯誤: 無法為標記 {target1_label} 和 {target2_label} 建立比例尺。原因: {e}")
 
     # 更新 Transform
@@ -201,12 +206,16 @@ for folder in all_folders:
     chunk.crs = None  # 設定為在地坐標系，無投影的本地座標系統
     # 設定 target 1、target 2、target 3 的 XYZ 值
     marker_names = ['target 1', 'target 2', 'target 3']
-    marker_coordinates = [(0, 0, 0), (0, 0.0582, 0), (0.0579, 0, 0)]
-    for marker_name, coordinates in zip(marker_names, marker_coordinates):
+    for _, row in local_coordinates_data.iterrows():
+        marker_name = row['marker_name']
+        coordinates = (row['x'], row['y'], row['z'])
+
         marker = next((m for m in chunk.markers if m.label == marker_name), None)
         if marker:
             marker.reference.location = coordinates
-
+            print(f"成功設置標記 {marker_name} 的坐標為 {coordinates}")
+        else:
+            print(f"警告: 找不到標記 {marker_name}，無法設置坐標")
     # 更新 Transform
     chunk.updateTransform()
     doc.save()
