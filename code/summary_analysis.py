@@ -4,10 +4,14 @@ import seaborn as sns
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 import numpy as np
+import os
 
 # Load CSV data
 file_path = r"D:\\3D_workshop\\indoor_demo\\summary_results.csv"
 data = pd.read_csv(file_path)
+
+# Set output directory to match the file path
+directory = os.path.dirname(file_path)
 
 # Clean and preprocess data
 data['Tie Points'] = data['Tie Points'].str.replace(',', '').astype(float)
@@ -43,4 +47,6 @@ for metric in metrics:
     plt.xlabel('Folder Name')
     plt.xticks(rotation=45)
     plt.grid(axis='y')
+    plt.tight_layout()
+    plt.savefig(os.path.join(directory, f'comparison_{metric.replace(" ", "_").lower()}.png'), bbox_inches='tight')
     plt.show()
