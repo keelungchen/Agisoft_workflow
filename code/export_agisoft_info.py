@@ -24,6 +24,10 @@ headers = [
     "Reprojection Error",
     "Tie Points",
     "Scale Bar Error"
+    "Coordinate System",
+    "Alignment Accuracy",
+    "Depth Maps Quality",
+    "Average Tie Point Multiplicity"
 ]
 
 # 初始化結果列表
@@ -74,6 +78,12 @@ for folder_name in os.listdir(base_folder):
         total_scale_bar_error = total_row.find_all('td')[-1].text
         total_scale_bar_error_value = float(total_scale_bar_error)
 
+        # 提取 Processing Parameters
+        coordinate_system = soup.find('td', string='Coordinate system').find_next('td').text
+        alignment_accuracy = soup.find('td', string='Accuracy').find_next('td').text
+        depth_maps_quality = soup.find('td', string='Quality').find_next('td').text
+        average_tie_point_multiplicity = soup.find('td', string='Average tie point multiplicity').find_next('td').text
+
         # 添加提取結果
         results.append([
             folder_name,
@@ -83,7 +93,11 @@ for folder_name in os.listdir(base_folder):
             coverage_area_value,
             reprojection_error_value,
             tie_points_value,
-            total_scale_bar_error_value
+            total_scale_bar_error_value,
+            coordinate_system,
+            alignment_accuracy,
+            depth_maps_quality,
+            average_tie_point_multiplicity
         ])
     except Exception as e:
         results.append([folder_name] + ["Error"] * (len(headers) - 1))
