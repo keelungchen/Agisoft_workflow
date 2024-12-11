@@ -8,12 +8,10 @@ print(Metashape.app.version)
 base_folder = r"D:\3D_workshop\indoor_demo"
 logo_folder = r"D:\3D_workshop\logo" # 輸出report時顯示在pdf上logo的檔案位置
 
-# 定義比例尺資訊與在地坐標檔案路徑
+# 定義比例尺資訊路徑
 scale_bar_file = r"D:\3D_workshop\scale_bars\scale_bars_info.xlsx"
-local_coordinates_file = r"D:\3D_workshop\scale_bars\local_coordinates_info.xlsx"
-# 讀取比例尺與在地坐標資訊
+# 讀取比例尺與資訊
 scale_bar_data = pd.read_excel(scale_bar_file)
-local_coordinates_data = pd.read_excel(local_coordinates_file)
 
 # 列出所有資料夾名稱並排除特定資料夾
 excluded_folders = {"folder_to_exclude", "another_folder_to_exclude"}  # 定義要排除的資料夾
@@ -200,47 +198,6 @@ for folder in all_folders:
     chunk.point_cloud.resetFilters()
     doc.save()
 
-
-    # Step 11: Set Reference to Local Coordinate System (設定參考為在地坐標系)
-    # 設定專案的參考為在地坐標系
-    chunk.crs = None  # 設定為在地坐標系，無投影的本地座標系統
-    # 設定 target 1、target 2、target 3 的 XYZ 值
-    marker_names = ['target 1', 'target 2', 'target 3']
-    for _, row in local_coordinates_data.iterrows():
-        marker_name = row['marker_name']
-        coordinates = (row['x'], row['y'], row['z'])
-
-        marker = next((m for m in chunk.markers if m.label == marker_name), None)
-        if marker:
-            marker.reference.location = coordinates
-            print(f"成功設置標記 {marker_name} 的坐標為 {coordinates}")
-        else:
-            print(f"警告: 找不到標記 {marker_name}，無法設置坐標")
-    # 更新 Transform
-    chunk.updateTransform()
-    doc.save()
-
-    # Step 12: Build DEM (建立數字高程模型)
-    # 使用密集點雲來建立DEM
-    chunk.buildDem(
-        source_data=Metashape.DataSource.PointCloudData,
-        interpolation=Metashape.EnabledInterpolation,
-        progress=lambda p: print(f'Processing {folder} buildDem: {p :.2f}% complete')
-    )
-    doc.save()
-
-    # Step 12: Build Orthomosaic (建立正射影像)
-    # 使用DEM來建立正射影像
-    chunk.buildOrthomosaic(
-        surface_data=Metashape.DataSource.ElevationData,
-        blending_mode=Metashape.BlendingMode.MosaicBlending,
-        fill_holes=True,
-        ghosting_filter=True,
-        resolution=0.0005,
-        progress=lambda p: print(f'Processing {folder} buildOrthomosaic: {p :.2f}% complete')
-    )
-    doc.save()
-
     # Step 13: Generate Report (生成報告)
     # 生成項目報告，包括關鍵的重建信息和數據統計
     report_path = os.path.join(products_folder, f"{project_name}_report.pdf")
@@ -266,5 +223,3 @@ for folder in all_folders:
     print("專案已儲存至:", project_path)
 
 print("所有資料夾的處理完成！")
-    
-
