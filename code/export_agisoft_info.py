@@ -1,89 +1,97 @@
-from bs4 import BeautifulSoup
-import pandas as pd
 import os
+from bs4 import BeautifulSoup
+import csv
+import re
 
-# 設定項目資料夾路徑及產品資料夾
-project_folder = r"D:\\3D_workshop\\indoor_demo\\tg_ortho_20\\agisoft"
-project_name = os.path.basename(os.path.dirname(project_folder))  # 使用資料夾名稱作為項目名稱
-output_folder = r"D:\\3D_workshop\\indoor_demo\\tg_ortho_20\\products"
-report_path = os.path.join(output_folder, f"{project_name}_report.html")
+# 定義父資料夾路徑
+base_folder = r"D:\\3D_workshop\\indoor_demo"
+output_csv = os.path.join(base_folder, "summary_results.csv")
 
-# 閱讀 HTML 文件
-html_file = report_path  # 替換為您的 HTML 文件路徑
-if not os.path.exists(html_file):
-    print(f"文件 {html_file} 不存在！請檢查路徑。")
-    exit()
+# 提取相關資訊函數，去除單位並返回數值和單位
+def extract_value_and_unit(text):
+    match = re.match(r"([0-9,.]+)\s*(.*)", text)
+    if match:
+        return match.group(1), match.group(2)
+    return text, ""
 
-with open(html_file, 'r', encoding='utf-8') as file:
-    soup = BeautifulSoup(file, 'html.parser')
-
-# 定義需要提取的資訊欄位
-fields = [
-    "Aligned images",
-    "Quality",
-    "Flying altitude",
-    "Ground resolution",
-    "Coverage area",
-    "Tie points",
-    "Scale Bars"
+# 定義結果表頭
+headers = [
+    "Folder Name",
+    "Camera Stations",
+    "Flying Altitude",
+    "Ground Resolution",
+    "Coverage Area",
+    "Reprojection Error",
+    "Tie Points",
+    "Scale Bar Error"
 ]
 
-# 存儲提取的資訊
-data = {}
+# 初始化結果列表
+results = []
 
-# 提取指定欄位的資訊
-for field in fields:
-    element = soup.find(text=field)  # 搜尋欄位
-    if element:
-        next_sibling = element.find_next()  # 取得欄位後的資訊
-        data[field] = next_sibling.get_text(strip=True) if next_sibling else "N/A"
-    else:
-        data[field] = "N/A"
+# 遍歷所有資料夾
+for folder_name in os.listdir(base_folder):
+    folder_path = os.path.join(base_folder, folder_name)
 
-# 特別處理 Scale Bars 中的 total error
-scale_bars = soup.find(text="Scale Bars")
-if scale_bars:
-    total_error = scale_bars.find_next(text="total")
-    if total_error:
-        total_error_value = total_error.find_next().get_text(strip=True)
-        data["Scale Bars Total Error"] = total_error_value
-    else:
-        data["Scale Bars Total Error"] = "N/A"
-else:
-    data["Scale Bars Total Error"] = "N/A"
-
-# 提取 <svg> 標籤中的 <text> 元素資訊
-svg_texts = soup.find_all("text")  # 找到所有 <text> 元素
-svg_data = {}
-
-# 依序處理 <text> 元素成對資訊
-for i in range(0, len(svg_texts), 2):
-    try:
-        key = svg_texts[i].get_text(strip=True)  # 第 i 個元素為欄位名稱
-        value = svg_texts[i + 1].get_text(strip=True)  # 第 i+1 個元素為欄位值
-        svg_data[key] = value
-    except IndexError:
-        print(f"解析 <text> 標籤時發生錯誤，無法處理索引 {i}")
+    # 確保處理的對象是資料夾
+    if not os.path.isdir(folder_path):
         continue
 
-# 將提取的資訊合併到 data 字典中
-data.update(svg_data)
+    products_path = os.path.join(folder_path, "products")
+    html_file = os.path.join(products_path, f"{folder_name}_report.html")
 
-# 轉換為 DataFrame
-try:
-    df = pd.DataFrame([data])
-except Exception as e:
-    print(f"轉換 DataFrame 時發生錯誤：{e}")
-    exit()
+    # 如果產品資料夾或 HTML 檔不存在，跳過
+    if not os.path.exists(products_path) or not os.path.exists(html_file):
+        results.append([folder_name] + ["N/A"] * (len(headers) - 1))
+        continue
 
-# 輸出表格並存儲為 CSV
-csv_file = os.path.join(output_folder, f"{project_name}_info.csv")  # 替換為您的輸出路徑
-try:
-    df.to_csv(csv_file, index=False)
-    print(f"提取的資訊已存儲至 {csv_file}")
-except Exception as e:
-    print(f"存檔 CSV 時發生錯誤：{e}")
-    exit()
+    # 讀取 HTML 檔案
+    with open(html_file, 'r', encoding='utf-8') as file:
+        soup = BeautifulSoup(file, 'html.parser')
 
-# 列印表格供參考
-print(df)
+    # 提取資訊
+    try:
+        camera_stations = soup.find('text', string='Camera stations:').find_next('text').text
+        camera_stations_value, _ = camera_stations, ""
+
+        flying_altitude = soup.find('text', string='Flying altitude:').find_next('text').text
+        flying_altitude_value, _ = extract_value_and_unit(flying_altitude)
+
+        ground_resolution = soup.find('text', string='Ground resolution:').find_next('text').text
+        ground_resolution_value, _ = extract_value_and_unit(ground_resolution)
+
+        coverage_area = soup.find('text', string='Coverage area:').find_next('text').text
+        coverage_area_value, _ = extract_value_and_unit(coverage_area)
+
+        reprojection_error = soup.find('text', string='Reprojection error:').find_next('text').text
+        reprojection_error_value, _ = extract_value_and_unit(reprojection_error)
+
+        tie_points = soup.find('text', string='Tie points:').find_next('text').text
+        tie_points_value, _ = tie_points, ""
+
+        scale_bar_error_table = soup.find('h1', string='Scale Bars').find_next('table')
+        total_row = scale_bar_error_table.find('td', string='Total').find_parent('tr')
+        total_scale_bar_error = total_row.find_all('td')[-1].text
+        total_scale_bar_error_value = float(total_scale_bar_error)
+
+        # 添加提取結果
+        results.append([
+            folder_name,
+            camera_stations_value,
+            flying_altitude_value,
+            ground_resolution_value,
+            coverage_area_value,
+            reprojection_error_value,
+            tie_points_value,
+            total_scale_bar_error_value
+        ])
+    except Exception as e:
+        results.append([folder_name] + ["Error"] * (len(headers) - 1))
+
+# 將結果寫入總 CSV
+with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(headers)  # 寫入表頭
+    writer.writerows(results)  # 寫入資料
+
+print(f"資料已成功彙總至 {output_csv}")
