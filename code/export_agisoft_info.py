@@ -23,7 +23,7 @@ headers = [
     "Coverage Area",
     "Reprojection Error",
     "Tie Points",
-    "Scale Bar Error"
+    "Scale Bar Error",
     "Coordinate System",
     "Alignment Accuracy",
     "Depth Maps Quality",
