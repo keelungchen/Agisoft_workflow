@@ -36,7 +36,7 @@ for folder in all_folders:
         print(f"警告: {folder} 資料夾結構不完整，跳過處理。")
         continue
 
-     # 設定 Metashape 專案相關路徑
+    # 設定 Metashape 專案相關路徑
     project_name = os.path.basename(folder_path)  # 以資料夾名稱作為專案名稱
     project_path = os.path.join(agisoft_folder, f"{project_name}.psx")  # 專案檔案路徑
    
