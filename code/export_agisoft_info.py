@@ -4,7 +4,7 @@ import csv
 import re
 
 # 定義父資料夾路徑
-base_folder = r"D:\\3D_workshop\\indoor_demo"
+base_folder = r"E:\island\2022_11"
 output_csv = os.path.join(base_folder, "summary_results.csv")
 
 # 提取相關資訊函數，去除單位並返回數值和單位
@@ -41,16 +41,26 @@ for folder_name in os.listdir(base_folder):
     if not os.path.isdir(folder_path):
         continue
 
-    products_path = os.path.join(folder_path, "products")
-    html_file = os.path.join(products_path, f"{folder_name}_report.html")
-
-    # 如果產品資料夾或 HTML 檔不存在，跳過
-    if not os.path.exists(products_path) or not os.path.exists(html_file):
+    products_path = os.path.join(folder_path, "products_old")
+    
+    # 確保產品資料夾存在
+    if not os.path.exists(products_path):
         results.append([folder_name] + ["N/A"] * (len(headers) - 1))
+        print(f"警告: 找不到 {products_path}，跳過資料夾 {folder_name}。")
         continue
 
+    # 搜尋 `products_old` 資料夾中的 .html 檔案
+    html_files = [f for f in os.listdir(products_path) if f.endswith(".html")]
+    if not html_files:
+        results.append([folder_name] + ["N/A"] * (len(headers) - 1))
+        print(f"警告: 在 {products_path} 中未找到任何 .html 檔案，跳過資料夾 {folder_name}。")
+        continue
+
+    # 使用第一個找到的 .html 檔案
+    html_file_path = os.path.join(products_path, html_files[0])
+
     # 讀取 HTML 檔案
-    with open(html_file, 'r', encoding='utf-8') as file:
+    with open(html_file_path, 'r', encoding='utf-8') as file:
         soup = BeautifulSoup(file, 'html.parser')
 
     # 提取資訊
