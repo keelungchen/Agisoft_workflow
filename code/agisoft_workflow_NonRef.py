@@ -5,11 +5,11 @@ import pandas as pd
 print(Metashape.app.version)
 
 # 定義根資料夾路徑
-base_folder = r"D:\3D_workshop\Delta_OL"
+base_folder = r"F:\Kauai_imus"
 logo_folder = r"D:\3D_workshop\logo" # 輸出report時顯示在pdf上logo的檔案位置
 
 # 定義比例尺資訊路徑
-scale_bar_file = r"D:\3D_workshop\scale_bars\scale_bars_info.xlsx"
+scale_bar_file = r"D:\Document_D\scale_bars_KBay.xlsx"
 # 讀取比例尺與資訊
 scale_bar_data = pd.read_excel(scale_bar_file)
 

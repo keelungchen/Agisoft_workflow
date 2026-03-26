@@ -3,10 +3,10 @@ import os
 import pandas as pd
 
 # 定義根資料夾路徑
-base_folder = r"F:\Kenting field trip 2412"
+project_path = r"D:\3Dmodels\imu_HIMB_2509\agisoft\imu_HIMB_2509.psx"
 
 # 定義比例尺資訊路徑
-scale_bar_file = r"F:\Kenting field trip 2412\scale_bars.xlsx"
+scale_bar_file = r"D:\Document_D\scale_bars_KBay.xlsx"
 # 讀取比例尺與資訊
 scale_bar_data = pd.read_excel(scale_bar_file)
    
@@ -18,18 +18,18 @@ chunk = doc.chunk
 print(f"相機數量: {len(chunk.cameras)}")
 
 # Step 6: Gradual Selection and Remove Points (逐步選擇並刪除點)
-# 在稀疏點雲中執行逐步選擇，選取誤差較大的點，level 設定為 16
+# 在稀疏點雲中執行逐步選擇，選取誤差較大的點，level 設定為 20
 f = Metashape.TiePoints.Filter()
 f.init(chunk, criterion=Metashape.TiePoints.Filter.ReconstructionUncertainty)
-f.selectPoints(threshold=16)
+f.selectPoints(threshold=20)
 # 刪除選取的點
 chunk.tie_points.removeSelectedPoints()
 doc.save()
 
 # 優化對齊
 chunk.optimizeCameras(fit_f=True, fit_cx=True, fit_cy=True, \
-    fit_b1=True, fit_b2=True, fit_k1=True, fit_k2=True, fit_k3=True, \
-    fit_k4=True, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
+    fit_b1=False, fit_b2=False, fit_k1=True, fit_k2=True, fit_k3=True, \
+    fit_k4=False, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
 doc.save()
 
 # Step 6.1: Gradual Selection by Projection Accuracy and Optimize Alignment
@@ -40,8 +40,8 @@ f.selectPoints(threshold=5)
 chunk.tie_points.removeSelectedPoints()
 # 優化對齊
 chunk.optimizeCameras(fit_f=True, fit_cx=True, fit_cy=True, \
-    fit_b1=True, fit_b2=True, fit_k1=True, fit_k2=True, fit_k3=True, \
-    fit_k4=True, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
+    fit_b1=False, fit_b2=False, fit_k1=True, fit_k2=True, fit_k3=True, \
+    fit_k4=False, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
 doc.save()
 
 
@@ -51,7 +51,7 @@ doc.save()
 chunk.detectMarkers(
     target_type=Metashape.TargetType.CircularTarget12bit,
     tolerance=20,
-    progress=lambda p: print(f'Processing {folder}: {p :.2f}% complete')
+    progress=lambda p: print(f'Processing {project_path}: {p :.2f}% complete')
 )
 doc.save()  # 保存檢測標記結果
 
@@ -111,11 +111,9 @@ f.selectPoints(threshold=0.5)
 chunk.tie_points.removeSelectedPoints()
 # 優化對齊
 chunk.optimizeCameras(fit_f=True, fit_cx=True, fit_cy=True, \
-    fit_b1=True, fit_b2=True, fit_k1=True, fit_k2=True, fit_k3=True, \
-    fit_k4=True, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
+    fit_b1=False, fit_b2=False, fit_k1=True, fit_k2=True, fit_k3=True, \
+    fit_k4=False, fit_p1=True, fit_p2=True, fit_p3=True, fit_p4=True, tiepoint_covariance=True)
 doc.save()
 
 # 顯示完成信息
 print("專案已儲存至:", project_path)
-
-print("所有資料夾的處理完成！")
