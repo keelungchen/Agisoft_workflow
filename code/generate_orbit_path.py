@@ -28,6 +28,10 @@ RADIUS_SCALE = 1.5          # 環繞半徑 = 模型對角線長度 * RADIUS_SCAL
 RADIUS_OVERRIDE = None      # 若要手動指定半徑 (公尺), 設為數值, 例如 5.0
                             # 設為 None 則自動計算
 
+HEIGHT_OVERRIDE = None      # 若要手動指定相機高度 (相對於中心點, 公尺), 例如 8.0
+                            # 設為 None 則由俯視角度和半徑自動計算
+                            # 注意: 設定此值時, 俯視角度會被重新計算
+
 NUM_KEYFRAMES = 36          # 環繞一圈的關鍵幀數量 (每 10 度一個 keyframe)
 TOTAL_FRAMES = 300          # 動畫總幀數 (30fps 時 = 10 秒影片)
 
@@ -52,7 +56,7 @@ def get_model_center_and_size(chunk):
     return center, diagonal
 
 
-def build_orbit_keyframes(center, radius, tilt_deg, num_keyframes):
+def build_orbit_keyframes(center, radius, tilt_deg, num_keyframes, height_override=None):
     """
     產生環繞一圈的 keyframe 位置和朝向。
 
@@ -61,6 +65,7 @@ def build_orbit_keyframes(center, radius, tilt_deg, num_keyframes):
         radius: 環繞半徑
         tilt_deg: 俯視角度 (度)
         num_keyframes: 關鍵幀數量
+        height_override: 手動指定高度 (若設定, 會覆蓋由 tilt_deg 計算的高度)
 
     Returns:
         list of (position, lookat_matrix) tuples
@@ -73,8 +78,12 @@ def build_orbit_keyframes(center, radius, tilt_deg, num_keyframes):
         angle = 2.0 * math.pi * i / num_keyframes
 
         # 相機位置: 以中心點為圓心, 在水平面上做圓, 並抬高
-        horizontal_r = radius * math.cos(tilt_rad)  # 水平投影半徑
-        height = radius * math.sin(tilt_rad)         # 相機高度 (相對中心)
+        if height_override is not None:
+            height = height_override
+            horizontal_r = math.sqrt(max(radius**2 - height**2, 0.01))
+        else:
+            horizontal_r = radius * math.cos(tilt_rad)  # 水平投影半徑
+            height = radius * math.sin(tilt_rad)         # 相機高度 (相對中心)
 
         cam_x = center.x + horizontal_r * math.cos(angle)
         cam_y = center.y + horizontal_r * math.sin(angle)
@@ -178,13 +187,22 @@ def main():
         radius = diagonal * RADIUS_SCALE
         print(f"自動計算半徑: {diagonal:.2f} * {RADIUS_SCALE} = {radius:.2f}")
 
-    print(f"俯視角度: {TILT_ANGLE_DEG}°")
+    # 決定高度
+    if HEIGHT_OVERRIDE is not None:
+        print(f"使用手動指定高度: {HEIGHT_OVERRIDE} (俯視角度將由高度和半徑重新計算)")
+        effective_tilt = math.degrees(math.atan2(HEIGHT_OVERRIDE, math.sqrt(max(radius**2 - HEIGHT_OVERRIDE**2, 0.01))))
+        print(f"實際俯視角度: {effective_tilt:.1f}°")
+    else:
+        print(f"俯視角度: {TILT_ANGLE_DEG}°")
+        height_calc = radius * math.sin(math.radians(TILT_ANGLE_DEG))
+        print(f"計算出的相機高度 (相對中心): {height_calc:.2f}")
+
     print(f"關鍵幀數量: {NUM_KEYFRAMES}")
     print(f"總幀數: {TOTAL_FRAMES}")
     print()
 
     # 產生 keyframes
-    keyframes = build_orbit_keyframes(center, radius, TILT_ANGLE_DEG, NUM_KEYFRAMES)
+    keyframes = build_orbit_keyframes(center, radius, TILT_ANGLE_DEG, NUM_KEYFRAMES, HEIGHT_OVERRIDE)
 
     # 套用到 camera track
     apply_camera_track(chunk, keyframes, TOTAL_FRAMES)
