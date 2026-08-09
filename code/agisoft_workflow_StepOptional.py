@@ -3,9 +3,21 @@ Metashape 批次處理腳本 v4  (Metashape 2.x API)
 
 可在開頭指定：
   - 執行模式：整個根資料夾批次處理，或只跑單一資料集 / 單一 .psx
-  - 起始與結束步驟（共 9 步）
+  - 起始與結束步驟（共 10 步）
   - 是否使用比例尺、是否在報告加 logo
   - 是否建立 DEM 與 orthomosaic，以及是否匯出成 GeoTIFF
+
+步驟簡述：
+   1. 匯入照片        讀取 photos 資料夾中的影像（已在專案中的不重複加入）
+   2. 對齊照片        matchPhotos + alignCameras，產生稀疏點雲並優化相機
+   3. 稀疏點雲清理    依 Reconstruction Uncertainty、Projection Accuracy 刪點後再優化
+   4. 偵測標記        偵測 Circular 12bit 標記
+   5. 建立比例尺      依 Excel 定義加入比例尺並更新 Transform（賦予實際尺度）
+   6. 重投影誤差清理  依 Reprojection Error 刪點 + 最終優化
+   7. 深度圖 + 密集點雲  建立深度圖與密集點雲，並刪除低信度點
+   8. 建立 DEM        （可選）以密集點雲建立 DEM，可匯出 GeoTIFF
+   9. 建立 Orthomosaic（可選）以 DEM 為表面建立正射影像，可匯出 GeoTIFF
+  10. 輸出報告        輸出 PDF / HTML 報告（放最後才會包含 DEM 與 ortho 頁面）
 
 子資料夾名稱採寬鬆比對（photos / photo / images 等皆可，不分大小寫）。
 
@@ -59,8 +71,8 @@ USE_SCALEBARS = True         # 是否建立比例尺（缺檔案時自動關閉�
 USE_LOGO = True              # 報告是否加 logo（缺檔案時自動關閉）
 OVERWRITE_PROJECT = False    # START_STEP == 1 時，若已有 .psx 是否重建
 
-BUILD_DEM = True             # Step 7：以密集點雲建立 DEM
-BUILD_ORTHOMOSAIC = True     # Step 8：以 DEM 為表面建立 orthomosaic
+BUILD_DEM = True             # Step 8：以密集點雲建立 DEM
+BUILD_ORTHOMOSAIC = True     # Step 9：以 DEM 為表面建立 orthomosaic
 EXPORT_RASTERS = True        # 建立後是否匯出成 GeoTIFF 到 products 資料夾
 
 LOGO_PATH = r"D:\3D_workshop\logo\report_logo.png"
@@ -165,7 +177,7 @@ def export_raster(chunk, path, source_data, resolution, save_alpha):
 
 
 # =============================================================================
-# 九個步驟
+# 十個步驟
 # =============================================================================
 
 def step_1_import(ctx):
@@ -196,7 +208,7 @@ def step_1_import(ctx):
 
 
 def step_2_align(ctx):
-    """對齊照片 + 稀疏點雲清理（Reconstruction Uncertainty、Projection Accuracy）"""
+    """對齊照片（matchPhotos + alignCameras）並優化相機"""
     chunk = ctx["chunk"]
 
     chunk.matchPhotos(
@@ -220,6 +232,15 @@ def step_2_align(ctx):
     optimize(chunk)
     ctx["doc"].save()
 
+
+def step_3_clean_sparse(ctx):
+    """稀疏點雲清理（Reconstruction Uncertainty、Projection Accuracy）後再優化"""
+    chunk = ctx["chunk"]
+
+    if chunk.tie_points is None:
+        print("  警告: 尚無 tie points，請先執行 Step 2")
+        return
+
     filter_tie_points(chunk, Metashape.TiePoints.Filter.ReconstructionUncertainty,
                       PARAMS["recon_uncertainty"], "Reconstruction Uncertainty")
     filter_tie_points(chunk, Metashape.TiePoints.Filter.ProjectionAccuracy,
@@ -227,7 +248,7 @@ def step_2_align(ctx):
     optimize(chunk)
 
 
-def step_3_detect_markers(ctx):
+def step_4_detect_markers(ctx):
     """偵測 Circular 12bit 標記"""
     chunk = ctx["chunk"]
     chunk.detectMarkers(
@@ -242,7 +263,7 @@ def step_3_detect_markers(ctx):
         print("  警告: 沒有偵測到任何標記")
 
 
-def step_4_scalebars(ctx):
+def step_5_scalebars(ctx):
     """依 Excel 定義建立比例尺並更新 Transform"""
     chunk = ctx["chunk"]
 
@@ -250,7 +271,7 @@ def step_4_scalebars(ctx):
         print("  設定為不使用比例尺，略過（模型將維持無實際尺度）")
         return
     if not chunk.markers:
-        print("  警告: chunk 中沒有標記，無法建立比例尺（請先執行 Step 3）")
+        print("  警告: chunk 中沒有標記，無法建立比例尺（請先執行 Step 4）")
         return
 
     existing = {sb.label for sb in chunk.scalebars}
@@ -303,14 +324,14 @@ def report_scalebar_error(chunk):
         print(f"  總誤差 {total:.6f} m（平均 {total / count:.6f} m）")
 
 
-def step_5_refine(ctx):
+def step_6_refine(ctx):
     """Reprojection Error 篩選 + 最終優化"""
     filter_tie_points(ctx["chunk"], Metashape.TiePoints.Filter.ReprojectionError,
                       PARAMS["reprojection_error"], "Reprojection Error")
     optimize(ctx["chunk"])
 
 
-def step_6_dense(ctx):
+def step_7_dense(ctx):
     """深度圖 + 密集點雲 + 信度過濾"""
     chunk = ctx["chunk"]
 
@@ -335,7 +356,7 @@ def step_6_dense(ctx):
     print("  已刪除信度 0-1 的點")
 
 
-def step_7_dem(ctx):
+def step_8_dem(ctx):
     """（可選）以密集點雲建立 DEM"""
     chunk = ctx["chunk"]
 
@@ -343,7 +364,7 @@ def step_7_dem(ctx):
         print("  設定為不建立 DEM，略過")
         return
     if chunk.point_cloud is None:
-        print("  警告: 沒有密集點雲，無法建立 DEM（請先執行 Step 6）")
+        print("  警告: 沒有密集點雲，無法建立 DEM（請先執行 Step 7）")
         return
     if not has_valid_transform(chunk):
         print("  警告: chunk 沒有有效的 transform，無法建立 DEM"
@@ -384,7 +405,7 @@ def step_7_dem(ctx):
         )
 
 
-def step_8_orthomosaic(ctx):
+def step_9_orthomosaic(ctx):
     """（可選）以 DEM 為表面建立 orthomosaic"""
     chunk = ctx["chunk"]
 
@@ -392,7 +413,7 @@ def step_8_orthomosaic(ctx):
         print("  設定為不建立 orthomosaic，略過")
         return
     if chunk.elevation is None:
-        print("  警告: 沒有 DEM，無法以 ElevationData 建立 orthomosaic（請先執行 Step 7）")
+        print("  警告: 沒有 DEM，無法以 ElevationData 建立 orthomosaic（請先執行 Step 8）")
         return
 
     kwargs = {
@@ -431,7 +452,7 @@ def step_8_orthomosaic(ctx):
         )
 
 
-def step_9_report(ctx):
+def step_10_report(ctx):
     """輸出 PDF 與 HTML 報告（放最後，報告才會包含 DEM / orthomosaic 頁面）"""
     chunk, name = ctx["chunk"], ctx["name"]
     kwargs = {
@@ -454,14 +475,15 @@ def step_9_report(ctx):
 # 調整處理順序只要改動這個清單的順序即可
 STEPS = [
     (1, "匯入照片", step_1_import),
-    (2, "對齊照片 + 稀疏點雲清理", step_2_align),
-    (3, "偵測標記", step_3_detect_markers),
-    (4, "建立比例尺 + 更新 Transform", step_4_scalebars),
-    (5, "重投影誤差清理 + 優化", step_5_refine),
-    (6, "深度圖 + 密集點雲", step_6_dense),
-    (7, "建立 DEM（可選）", step_7_dem),
-    (8, "建立 Orthomosaic（可選）", step_8_orthomosaic),
-    (9, "輸出報告", step_9_report),
+    (2, "對齊照片", step_2_align),
+    (3, "稀疏點雲清理", step_3_clean_sparse),
+    (4, "偵測標記", step_4_detect_markers),
+    (5, "建立比例尺 + 更新 Transform", step_5_scalebars),
+    (6, "重投影誤差清理 + 優化", step_6_refine),
+    (7, "深度圖 + 密集點雲", step_7_dense),
+    (8, "建立 DEM（可選）", step_8_dem),
+    (9, "建立 Orthomosaic（可選）", step_9_orthomosaic),
+    (10, "輸出報告", step_10_report),
 ]
 LAST_STEP = STEPS[-1][0]
 
@@ -517,9 +539,9 @@ def configure_interactively():
     if START_STEP == 1:
         OVERWRITE_PROJECT = ask_bool("若已存在專案是否重建", OVERWRITE_PROJECT)
 
-    if START_STEP <= 7 <= END_STEP:
-        BUILD_DEM = ask_bool("是否建立 DEM", BUILD_DEM)
     if START_STEP <= 8 <= END_STEP:
+        BUILD_DEM = ask_bool("是否建立 DEM", BUILD_DEM)
+    if START_STEP <= 9 <= END_STEP:
         BUILD_ORTHOMOSAIC = ask_bool("是否建立 orthomosaic", BUILD_ORTHOMOSAIC)
     if BUILD_DEM or BUILD_ORTHOMOSAIC:
         EXPORT_RASTERS = ask_bool("是否匯出 GeoTIFF", EXPORT_RASTERS)
@@ -562,7 +584,7 @@ def preflight():
             print(f"警告: 找不到 logo {LOGO_PATH}，報告不使用 logo")
             USE_LOGO = False
 
-    if BUILD_ORTHOMOSAIC and not BUILD_DEM and START_STEP <= 7:
+    if BUILD_ORTHOMOSAIC and not BUILD_DEM and START_STEP <= 8:
         print("提醒: orthomosaic 以 DEM 為表面，若專案中沒有既有 DEM 會自動略過")
 
     return scale_bar_data, logo_path
