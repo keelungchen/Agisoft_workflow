@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python \"C:\\\\Users\\\\keelu\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-keelu-python-Agisoft-workflow\\\\c56f72a2-3ffe-4038-92fd-2734f359b99f\\\\scratchpad\\\\to_csv.py\")",
+      "PowerShell(python \"C:\\\\Users\\\\keelu\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-keelu-python-Agisoft-workflow\\\\c56f72a2-3ffe-4038-92fd-2734f359b99f\\\\scratchpad\\\\test_reader.py\")",
+      "Bash(python -c \"import ast,io; ast.parse\\(io.open\\('code/agisoft_workflow_StepOptional.py',encoding='utf-8'\\).read\\(\\)\\); print\\('syntax OK'\\)\")"
+    ]
+  }
+}

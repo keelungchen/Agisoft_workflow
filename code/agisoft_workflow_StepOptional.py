@@ -12,7 +12,7 @@ Metashape 批次處理腳本 v4  (Metashape 2.x API)
    2. 對齊照片        matchPhotos + alignCameras，產生稀疏點雲並優化相機
    3. 稀疏點雲清理    依 Reconstruction Uncertainty、Projection Accuracy 刪點後再優化
    4. 偵測標記        偵測 Circular 12bit 標記
-   5. 建立比例尺      依 Excel 定義加入比例尺並更新 Transform（賦予實際尺度）
+   5. 建立比例尺      依 CSV 定義加入比例尺並更新 Transform（賦予實際尺度）
    6. 重投影誤差清理  依 Reprojection Error 刪點 + 最終優化
    7. 深度圖 + 密集點雲  建立深度圖與密集點雲，並刪除低信度點
    8. 建立 DEM        （可選）以密集點雲建立 DEM，可匯出 GeoTIFF
@@ -25,7 +25,7 @@ Metashape 批次處理腳本 v4  (Metashape 2.x API)
 """
 
 import os
-import pandas as pd
+import csv
 import Metashape
 
 print("Metashape 版本:", Metashape.app.version)
@@ -76,7 +76,11 @@ BUILD_ORTHOMOSAIC = True     # Step 9：以 DEM 為表面建立 orthomosaic
 EXPORT_RASTERS = True        # 建立後是否匯出成 GeoTIFF 到 products 資料夾
 
 LOGO_PATH = r"D:\3D_workshop\logo\report_logo.png"
-SCALE_BAR_FILE = r"D:\Document_D\scale_bars_KBay.xlsx"
+
+# 比例尺定義 CSV，需含 scale_bar_1 / scale_bar_2 / length 三個欄位（length 單位為公尺）
+#   scale_bar_1,scale_bar_2,length
+#   target 52,target 53,0.297
+SCALE_BAR_FILE = r"D:\Document_D\scale_bars_KBay.csv"
 
 # --- 處理參數 ---------------------------------------------------------------
 PARAMS = {
@@ -128,6 +132,44 @@ def filter_tie_points(chunk, criterion, threshold, label):
     n = len([p for p in chunk.tie_points.points if p.selected])
     chunk.tie_points.removeSelectedPoints()
     print(f"  {label} > {threshold}：刪除 {n} 點")
+
+
+def read_scale_bar_csv(path):
+    """讀取比例尺 CSV，回傳 [{'scale_bar_1':.., 'scale_bar_2':.., 'length':float}, ...]
+
+    欄位名稱不分大小寫、自動去除前後空白；缺欄位會丟出例外，
+    個別資料行有問題（空白行、length 非數字）則印警告後跳過。
+    """
+    required = ("scale_bar_1", "scale_bar_2", "length")
+
+    with open(path, newline="", encoding="utf-8-sig") as fp:
+        reader = csv.DictReader(fp)
+        if not reader.fieldnames:
+            raise ValueError("CSV 沒有標題列")
+
+        # 標題 -> 實際欄位名的對照（容忍大小寫與多餘空白）
+        header = {(h or "").strip().lower(): h for h in reader.fieldnames}
+        missing = [c for c in required if c not in header]
+        if missing:
+            raise ValueError(f"缺少欄位 {missing}（實際欄位: {reader.fieldnames}）")
+
+        rows = []
+        for raw in reader:
+            line = reader.line_num          # 檔案中的實際行號（第 1 行是標題）
+            values = [(raw.get(header[c]) or "").strip() for c in required]
+            if not any(values):
+                continue
+            l1, l2, length = values
+            if not l1 or not l2:
+                print(f"  警告: 比例尺 CSV 第 {line} 行缺少標記名稱，跳過")
+                continue
+            try:
+                length = float(length)
+            except ValueError:
+                print(f"  警告: 比例尺 CSV 第 {line} 行的 length「{length}」不是數字，跳過")
+                continue
+            rows.append({"scale_bar_1": l1, "scale_bar_2": l2, "length": length})
+    return rows
 
 
 def has_valid_transform(chunk):
@@ -264,7 +306,7 @@ def step_4_detect_markers(ctx):
 
 
 def step_5_scalebars(ctx):
-    """依 Excel 定義建立比例尺並更新 Transform"""
+    """依 CSV 定義建立比例尺並更新 Transform"""
     chunk = ctx["chunk"]
 
     if not USE_SCALEBARS:
@@ -276,7 +318,7 @@ def step_5_scalebars(ctx):
 
     existing = {sb.label for sb in chunk.scalebars}
     created = 0
-    for _, row in ctx["scale_bar_data"].iterrows():
+    for row in ctx["scale_bar_data"] or []:
         l1, l2, length = row["scale_bar_1"], row["scale_bar_2"], row["length"]
         m1 = next((m for m in chunk.markers if m.label == l1), None)
         m2 = next((m for m in chunk.markers if m.label == l2), None)
@@ -565,16 +607,15 @@ def preflight():
             USE_SCALEBARS = False
         else:
             try:
-                scale_bar_data = pd.read_excel(SCALE_BAR_FILE)
-                missing = {"scale_bar_1", "scale_bar_2", "length"} - set(scale_bar_data.columns)
-                if missing:
-                    print(f"警告: 比例尺檔案缺少欄位 {missing}，本次不建立比例尺")
+                scale_bar_data = read_scale_bar_csv(SCALE_BAR_FILE)
+                if not scale_bar_data:
+                    print("警告: 比例尺檔案中沒有可用的資料列，本次不建立比例尺")
                     USE_SCALEBARS, scale_bar_data = False, None
                 else:
                     print(f"已讀取比例尺定義 {len(scale_bar_data)} 筆")
             except Exception as e:
                 print(f"警告: 讀取比例尺檔案失敗（{e}），本次不建立比例尺")
-                USE_SCALEBARS = False
+                USE_SCALEBARS, scale_bar_data = False, None
 
     logo_path = None
     if USE_LOGO:
