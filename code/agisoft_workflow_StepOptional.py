@@ -17,6 +17,8 @@ Metashape 批次處理腳本 v4  (Metashape 2.x API)
    7. 深度圖 + 密集點雲  建立深度圖與密集點雲，並刪除低信度點
    8. 建立 DEM        （可選）以密集點雲建立 DEM，可匯出 GeoTIFF
    9. 建立 Orthomosaic（可選）以 DEM 為表面建立正射影像，可匯出 GeoTIFF
+      第 8、9 步的投影預設為 auto：沒有地理座標（只有比例尺）時，自動把 chunk 轉成
+      Local Coordinates (m) 並沿 region Z 軸做平面投影，見 PROJECTION_MODE
   10. 輸出報告        輸出 PDF / HTML 報告（放最後才會包含 DEM 與 ortho 頁面）
 
 子資料夾名稱採寬鬆比對（photos / photo / images 等皆可，不分大小寫）。
@@ -102,10 +104,12 @@ PARAMS = {
     "ortho_refine_seamlines": False,
 }
 
-# 投影方式：
-#   "default" = 使用 chunk.crs（需要 chunk 有有效 transform，一般靠比例尺 + 標記建立）
-#   "planar"  = 沿 chunk region 的 Z 軸做平面正射投影（局部座標、無地理參考時用）
-PROJECTION_MODE = "default"
+# DEM / orthomosaic 的投影方式：
+#   "auto"    = 自動判斷（建議）。chunk 有地理參考（相機或標記帶座標）就用 chunk.crs；
+#               沒有的話把 chunk 轉成 Local Coordinates (m)，並沿 region Z 軸做平面投影
+#   "default" = 一律使用 chunk.crs（新建 chunk 預設是 WGS84，無地理參考時通常不適用）
+#   "planar"  = 一律使用 local coordinate 的平面投影
+PROJECTION_MODE = "auto"
 
 
 # =============================================================================
@@ -178,24 +182,77 @@ def has_valid_transform(chunk):
     return bool(t and t.scale and t.rotation and t.translation)
 
 
+LOCAL_CRS_WKT = ('LOCAL_CS["Local Coordinates (m)",'
+                 'LOCAL_DATUM["Local Datum",0],'
+                 'UNIT["metre",1,AUTHORITY["EPSG","9001"]]]')
+
+
+def is_local_crs(chunk):
+    crs = chunk.crs
+    if crs is None:
+        return True
+    return (crs.wkt or "").strip().upper().startswith("LOCAL_CS")
+
+
+def is_georeferenced(chunk):
+    """chunk 是否有真正的地理座標
+
+    只有相機或標記帶有啟用的 reference.location 才算；只靠比例尺得到的 transform
+    只有尺度與方位，沒有地理座標，仍視為無座標系。
+    """
+    if is_local_crs(chunk):
+        return False
+    if any(c.reference.enabled and c.reference.location for c in chunk.cameras):
+        return True
+    if any(m.reference.enabled and m.reference.location for m in chunk.markers):
+        return True
+    return False
+
+
+def ensure_local_crs(chunk):
+    """沒有座標系時，把 chunk 設成 Local Coordinates (m)
+
+    不呼叫 updateTransform()：Step 5 由比例尺建立的 transform 要保留下來。
+    """
+    if is_local_crs(chunk):
+        return
+    try:
+        chunk.crs = Metashape.CoordinateSystem(LOCAL_CRS_WKT)
+    except Exception as e:
+        print(f"  警告: 設定 LOCAL_CS 失敗（{e}），改用 chunk.crs = None")
+        chunk.crs = None
+    print("  未偵測到地理參考 → chunk 座標系改為 Local Coordinates (m)")
+
+
+def use_local_projection(chunk):
+    """本次是否要走 local coordinate 的平面投影"""
+    if PROJECTION_MODE == "planar":
+        return True
+    if PROJECTION_MODE == "default":
+        return False
+    return not is_georeferenced(chunk)          # "auto"
+
+
 def build_projection(chunk):
-    """回傳要傳給 buildDem / buildOrthomosaic 的 projection，或 None（用預設）"""
-    if PROJECTION_MODE != "planar":
+    """回傳要傳給 buildDem / buildOrthomosaic 的 projection，或 None（用 chunk.crs 預設）"""
+    if not use_local_projection(chunk):
         return None
 
-    # 局部座標的平面正射投影：沿 chunk region 的 Z 軸俯視
-    # 世界座標 -> 內部座標 -> region 對齊座標
+    ensure_local_crs(chunk)
+
+    # 局部座標的平面正射投影：沿 chunk region 的 Z 軸俯視、原點放在 region 中心。
+    # region.rot / region.center 是內部座標，先用 chunk.transform 換算到 world 再組
+    # 「旋轉 + 平移」，這樣輸出仍保有比例尺賦予的公尺尺度（用 T.inv() 會把尺度除掉）。
+    T = chunk.transform.matrix
+    R_world = T.rotation() * chunk.region.rot
+    center_world = T.mulp(chunk.region.center)
+
     proj = Metashape.OrthoProjection()
     proj.type = Metashape.OrthoProjection.Type.Planar
     proj.crs = chunk.crs
-
-    T = chunk.transform.matrix
-    R = chunk.region.rot
-    center = chunk.region.center
-    proj.matrix = (Metashape.Matrix().Rotation(R.t())
-                   * Metashape.Matrix().Translation(-center)
-                   * T.inv())
-    print("  使用 planar 投影（沿 region Z 軸俯視）— 建議產出後目視確認方向")
+    proj.matrix = (Metashape.Matrix().Rotation(R_world.t())
+                   * Metashape.Matrix().Translation(-center_world))
+    print("  使用 local coordinate 平面投影（沿 region Z 軸俯視）— 建議產出後目視確認方向")
     return proj
 
 
@@ -409,9 +466,12 @@ def step_8_dem(ctx):
         print("  警告: 沒有密集點雲，無法建立 DEM（請先執行 Step 7）")
         return
     if not has_valid_transform(chunk):
-        print("  警告: chunk 沒有有效的 transform，無法建立 DEM"
-              "（通常表示缺少比例尺或參考點）")
-        return
+        if not use_local_projection(chunk):
+            print("  警告: chunk 沒有有效的 transform，無法建立 DEM"
+                  "（通常表示缺少比例尺或參考點）")
+            return
+        # local coordinate 不需要 transform 也能建，只是尺度是任意單位
+        print("  提醒: chunk 沒有有效的 transform，DEM 將以任意單位的 local coordinate 建立")
 
     kwargs = {
         "source_data": Metashape.PointCloudData,
@@ -783,6 +843,7 @@ def main():
     print(f"Logo     : {'使用' if USE_LOGO else '不使用'}")
     print(f"DEM      : {'建立' if BUILD_DEM else '不建立'}")
     print(f"Ortho    : {'建立' if BUILD_ORTHOMOSAIC else '不建立'}")
+    print(f"投影     : {PROJECTION_MODE}")
     print(f"匯出 TIFF: {'是' if EXPORT_RASTERS else '否'}")
     print(f"待處理   : {len(jobs)} 個資料集")
     print("========================")
